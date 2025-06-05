@@ -19,9 +19,11 @@ class Snake {
   }
 
   move() {
+    // 1) remember where every part was
     const oldPos = this.parts.map((p) => ({ x: p.x, y: p.y }));
     const head = this.parts[0];
 
+    // 2) advance the head
     switch (this.direction) {
       case "right":
         head.x += this.tileSize;
@@ -37,6 +39,15 @@ class Snake {
         break;
     }
 
+    // 3) wrap‐around logic
+    const maxW = this.scene.scale.width;
+    const maxH = this.scene.scale.height;
+    if (head.x >= maxW) head.x = 0;
+    else if (head.x < 0) head.x = maxW - this.tileSize;
+    if (head.y >= maxH) head.y = 0;
+    else if (head.y < 0) head.y = maxH - this.tileSize;
+
+    // 4) shift the body into the spots vacated by its predecessor
     for (let i = 1; i < this.parts.length; i++) {
       this.parts[i].x = oldPos[i - 1].x;
       this.parts[i].y = oldPos[i - 1].y;
@@ -95,10 +106,9 @@ export class GameScene extends Phaser.Scene {
     if (time < this.lastMoveTime + MOVE_INTERVAL) return;
     this.lastMoveTime = time;
 
-    // 1) move the snake
     this.snake.move();
 
-    // 2) eat food?
+    // eat food?
     if (
       Phaser.Geom.Intersects.RectangleToRectangle(
         this.snake.parts[0].getBounds(),
@@ -106,18 +116,16 @@ export class GameScene extends Phaser.Scene {
       )
     ) {
       this.snake.grow();
-
       const ts = this.snake.tileSize;
       const cols = this.scale.width / ts;
       const rows = this.scale.height / ts;
-
       this.food.setPosition(
         Phaser.Math.Between(0, cols - 1) * ts,
         Phaser.Math.Between(0, rows - 1) * ts
       );
     }
 
-    // 3) self‐collision: only if head lands exactly on a body‐part tile
+    // self‐collision on exact tile‐match
     const head = this.snake.parts[0];
     for (let part of this.snake.bodyParts()) {
       if (head.x === part.x && head.y === part.y) {
