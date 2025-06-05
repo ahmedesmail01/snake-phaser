@@ -19,11 +19,11 @@ class Snake {
   }
 
   move() {
-    // 1) remember where every part was
+    // remember old positions
     const oldPos = this.parts.map((p) => ({ x: p.x, y: p.y }));
     const head = this.parts[0];
 
-    // 2) advance the head
+    // advance head
     switch (this.direction) {
       case "right":
         head.x += this.tileSize;
@@ -39,7 +39,7 @@ class Snake {
         break;
     }
 
-    // 3) wrap‐around logic
+    // wrap‐around
     const maxW = this.scene.scale.width;
     const maxH = this.scene.scale.height;
     if (head.x >= maxW) head.x = 0;
@@ -47,7 +47,7 @@ class Snake {
     if (head.y >= maxH) head.y = 0;
     else if (head.y < 0) head.y = maxH - this.tileSize;
 
-    // 4) shift the body into the spots vacated by its predecessor
+    // shift body
     for (let i = 1; i < this.parts.length; i++) {
       this.parts[i].x = oldPos[i - 1].x;
       this.parts[i].y = oldPos[i - 1].y;
@@ -79,8 +79,16 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     const ts = 32;
+
+    // INIT MOVE INTERVAL & MINIMUM
+    this.moveInterval = 150; // starting ms between steps
+    this.minMoveInterval = 50; // fastest speed cap
+    this.speedStep = 10; // ms to subtract on each food
+
+    // spawn snake
     this.snake = new Snake(this, 5 * ts, 5 * ts, 3, ts);
 
+    // spawn food
     const cols = this.scale.width / ts;
     const rows = this.scale.height / ts;
     this.food = this.add
@@ -91,6 +99,7 @@ export class GameScene extends Phaser.Scene {
       )
       .setOrigin(0);
 
+    // keyboard input
     this.input.keyboard.on("keydown", (e) => {
       if (e.key === "ArrowUp") this.snake.setDirection("up");
       if (e.key === "ArrowDown") this.snake.setDirection("down");
@@ -102,20 +111,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time) {
-    const MOVE_INTERVAL = 150;
-    if (time < this.lastMoveTime + MOVE_INTERVAL) return;
+    // WAIT FOR NEXT STEP
+    if (time < this.lastMoveTime + this.moveInterval) return;
     this.lastMoveTime = time;
 
+    // 1) move the snake
     this.snake.move();
 
-    // eat food?
-    if (
-      Phaser.Geom.Intersects.RectangleToRectangle(
-        this.snake.parts[0].getBounds(),
-        this.food.getBounds()
-      )
-    ) {
+    // 2) did we eat?
+    const headRect = this.snake.parts[0].getBounds();
+    const foodRect = this.food.getBounds();
+    if (Phaser.Geom.Intersects.RectangleToRectangle(headRect, foodRect)) {
+      // grow snake
       this.snake.grow();
+
+      // speed up, clamped to minMoveInterval
+      this.moveInterval = Math.max(
+        this.minMoveInterval,
+        this.moveInterval - this.speedStep
+      );
+
+      // reposition food
       const ts = this.snake.tileSize;
       const cols = this.scale.width / ts;
       const rows = this.scale.height / ts;
@@ -125,7 +141,7 @@ export class GameScene extends Phaser.Scene {
       );
     }
 
-    // self‐collision on exact tile‐match
+    // 3) self-collision on exact tile‐match
     const head = this.snake.parts[0];
     for (let part of this.snake.bodyParts()) {
       if (head.x === part.x && head.y === part.y) {
